@@ -1,104 +1,103 @@
-const Joi = require('joi');
 const express = require('express');
+const mongoose = require('mongoose');
+const mongoDbUrl = 'mongodb://localhost/BankAccount';
+const Account = require('../BankAccount/models/Account');
+const { v4: uuidv4 } = require('uuid');
 
 const app = express();
+mongoose.connect(mongoDbUrl, { useUnifiedTopology: true }, { useNewUrlParser: true });
+const con = mongoose.connection;
+
+con.on('open', function(){
+    console.log('Db connected');
+});
 app.use(express.json());
 
-const accountArray = [
-    {id: 1, Name: 'John', Balance: 500.00},
-    {id: 2, Name: 'Hakem', Balance: 300.50},
-    {id: 3, Name: 'Sandra', Balance: 259.00},
-    {id: 4, Name: 'Blessing', Balance: 730.99},
-    {id: 5, Name: 'Bolu', Balance: 199.99}
-];
-
 //Get all accounts
-app.get('/', (req, res) =>{
-    res.send(accountArray);
+app.get('/', async(req, res) =>{
+    const allAccounts = await Account.find(); 
+    res.json(allAccounts)
 });
 
 //Get all Accounts
-app.get('/api/accounts', (req, res) => {
-    res.send(accountArray);
+app.get('/api/accounts', async(req, res) => {
+    const allAccounts = await Account.find(); 
+    res.json(allAccounts)
 });
 
 //Get an Account by id
-app.get('/api/accounts/:id', (req, res) => {
-    const account = accountArray.find(c => c.id == parseInt(req.params.id));
+app.get('/api/accounts/:id', async(req, res) => {
+    try {
+        const account = await Account.findById(req.params.id); 
+
+    //Return 404 if account doesn't exit
     if(!account){
         res.status(404).send(`Account with id: ${req.params.id} not found`);
         return;
     }
-    res.send(account);
+    res.json(account)
+    } catch (error) {
+        res.send(`Error ${error}`);
+    }
+    
 });
 
 //Add a new Account 
-app.post('/api/accounts', (req, res) => {
-    const scheme = {
-        Name: Joi.string().required(),        
-        Balance: Joi.number().required()
-    };
+app.post('/api/accounts', async(req, res) => {
+    const account = new Account({  
+        id: uuidv4(),     
+        name: req.body.name,
+        balance: req.body.balance
+    });
 
-    const result = Joi.validate(req.body, scheme);
-
-    if(result.error){
-        res.status(400).send(result.error.details[0].message);
-        return;
+    try {
+        const savedAccount = await account.save();
+        res.json(savedAccount);
+    } catch (error) {
+        res.send(`Error ${error}`);
     }   
-
-    const account = {
-        id: accountArray.length + 1,
-        Name: req.body.Name,
-        Balance: req.body.Balance
-    };
-    accountArray.push(account);
-    res.send(account);
 });
 
 //Update the details of an Account
-app.put('/api/accounts/:id', (req, res) => {
-    const account = accountArray.find(c => c.id == parseInt(req.params.id));
+app.put('/api/accounts/:id', async(req, res) => {
+    try {
+        const account = await Account.findById(req.params.id); 
 
-    //Return 404 if account doesn't exit
-    if(!account){
-        res.status(404).send(`Account with id: ${req.params.id} not found`);
-        return;
+        //Return 404 if account doesn't exit
+        if(!account){
+            res.status(404).send(`Account with id: ${req.params.id} not found`);
+            return;
+        }
+   
+        //Update the account
+        account.id = uuidv4();
+        account.balance = req.body.balance;
+        account.name = req.body.name;
+
+        const savesAccount = await account.save()
+
+        res.json(savesAccount);
+    } catch (error) {
+        res.send(`Error ${error}`);
     }
-
-    const scheme = {       
-        Name: Joi.string().required(),        
-        Balance: Joi.number().required()
-    };
-
-    const result = Joi.validate(req.body, scheme);
-
-    //Return 400 if validation fails
-    if(result.error){
-        res.status(400).send(result.error.details[0].message);
-        return;
-    }   
-
-    //Update the account
-    account.Balance = req.body.Balance;
-    account.Name = req.body.Name;
-    res.send(account);
 });
 
 //Delete an Account  
-app.delete('/api/accounts/:id', (req, res) =>{
-    const account = accountArray.find(c => c.id == parseInt(req.params.id));
+app.delete('/api/accounts/:id', async(req, res) =>{
+    try {
+        const account = await Account.findById(req.params.id); 
 
-    //Return 404 if account doesn't exit
-    if(!account){
-        res.status(404).send(`Account with id: ${req.params.id} not found`);
+        //Return 404 if account doesn't exit
+        if(!account){
+            res.status(404).send(`Account with id: ${req.params.id} not found`);
+            return;
+        }
+        await account.remove();
+        res.send("Account has been deleted successfully");
         return;
-    }
-
-    //Delete the account
-    const index = accountArray.indexOf(account);
-    accountArray.splice(index, 1);
-
-    res.send("Account has been deleted successfully");
+    } catch (error) {
+        res.send(`Error ${error}`);
+    }    
 });
 
 
